@@ -4,17 +4,16 @@ PORT?=8000
 RELEASE?=0.0.1
 COMMIT?=$(shell git rev-parse --short HEAD)
 BUILD_TIME?=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-CONTAINER_IMAGE?=docker.io/sundarganesh90/${APP}
-
-GOOS?=windows
+CONTAINER_IMAGE?=docker.io/sundarganesh90/httpappdev
 GOARCH?=amd64
 
-
+clean:
+	rm -f ${APP}
 
 build: 
-	CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} go build \
+	     go build \
 		-ldflags "-s -w -X ${PROJECT}/version.Release=${RELEASE} \
-		-X ${PROJECT}/version.Commit=${COMMIT} -X ${PROJECT}/version.BuildTime=${BUILD_TIME}" \
+		-X ${PROJECT}/version.Commit=${COMMIT}" \
 		-o ${APP}
 
 container: build
@@ -29,4 +28,14 @@ run: container
 test:
 	go test -v -race ./...
 
+push: container
+    docker push $(CONTAINER_IMAGE):${APP}
 
+minikube: push
+	for t in $(shell find ./kubernetes/httpapp -type f -name "*.yaml"); do \
+        cat $$t | \
+        	gsed -E "s/\{\{(\s*)\.Release(\s*)\}\}/$(RELEASE)/g" | \
+        	gsed -E "s/\{\{(\s*)\.ServiceName(\s*)\}\}/$(APP)/g"; \
+        echo ---; \
+    done > tmp.yaml
+	kubectl apply -f tmp.yaml 
